@@ -1,13 +1,13 @@
 version: '3.8'
 
 services:
-  mongo:
-    image: mongo
-    container_name: mongo
-    hostname: mongo
-    ports:
-      - "27017:27017"
-    network_mode: "host"
+  #mongo:
+  #  image: mongo
+  #  container_name: mongo
+  #  hostname: mongo
+  #  ports:
+  #    - "27017:27017"
+  #  network_mode: "host"
 
   springboot-app:
     build:
@@ -18,8 +18,8 @@ services:
       - "8080:8080"
     environment:
       - MONGO_DB_URI=mongodb://localhost:27017
-    depends_on:
-      - mongo
+  #  depends_on:
+  #    - mongo
     restart: on-failure
     network_mode: "host"
     
