@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>MongoUserController.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">backend</a> &gt; <a href="index.source.html" class="el_package">com.github.wekaito.backend.security</a> &gt; <span class="el_source">MongoUserController.java</span></div><h1>MongoUserController.java</h1><pre class="source lang-java linenums">package com.github.wekaito.backend.security;
+
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.web.bind.annotation.*;
+
+@RequiredArgsConstructor
+@RestController
+@RequestMapping(&quot;/api/user&quot;)
+public class MongoUserController {
+
+    private final MongoUserDetailsService mongoUserDetailsService;
+
+    @GetMapping(&quot;/me&quot;)
+    public String getUserInfo() {
+<span class="fc" id="L17">        return SecurityContextHolder.getContext().getAuthentication().getName();</span>
+    }
+
+    @PostMapping(&quot;/login&quot;)
+    public String login() {
+<span class="fc" id="L22">        return SecurityContextHolder.getContext().getAuthentication().getName();</span>
+    }
+
+    @PostMapping(&quot;/logout&quot;)
+    public void logout() {
+<span class="nc" id="L27">        SecurityContextHolder.clearContext();</span>
+<span class="nc" id="L28">    }</span>
+
+    @PostMapping(&quot;/register&quot;)
+    public String register(@Valid @RequestBody RegistrationUser registrationUser) {
+<span class="fc" id="L32">        return mongoUserDetailsService.registerNewUser(registrationUser);</span>
+    }
+
+    @PutMapping(&quot;/active-deck/{deckId}&quot;)
+    public void setActiveDeck(@PathVariable String deckId) {
+<span class="fc" id="L37">        mongoUserDetailsService.setActiveDeck(deckId);</span>
+<span class="fc" id="L38">    }</span>
+
+    @GetMapping(&quot;/active-deck&quot;)
+    public String getActiveDeck() {
+<span class="fc" id="L42">        return mongoUserDetailsService.getActiveDeck();</span>
+    }
+
+    @PutMapping(&quot;/avatar/{avatarName}&quot;)
+    public void setAvatar(@PathVariable String avatarName){
+<span class="fc" id="L47">        mongoUserDetailsService.setAvatar(avatarName);</span>
+<span class="fc" id="L48">    }</span>
+
+    @GetMapping(&quot;/avatar&quot;)
+    public String getAvatar() {
+<span class="fc" id="L52">        return mongoUserDetailsService.getAvatar();</span>
+    }
+
+    @GetMapping(&quot;/recovery/{username}&quot;)
+    public String getRecoveryQuestion(@PathVariable String username) {
+<span class="fc" id="L57">        return mongoUserDetailsService.getRecoveryQuestion(username);</span>
+    }
+
+    @PutMapping(&quot;/recovery&quot;)
+    public String changePassword(@Valid @RequestBody PasswordRecovery passwordRecovery) {
+<span class="fc" id="L62">        return mongoUserDetailsService.changePassword(passwordRecovery);</span>
+    }
+
+    @PutMapping(&quot;/change-question&quot;)
+    public String changeQuestion(@Valid @RequestBody SafetyQuestionChange safetyQuestionChange) {
+<span class="fc" id="L67">        return mongoUserDetailsService.changeQuestion(safetyQuestionChange);</span>
+    }
+
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

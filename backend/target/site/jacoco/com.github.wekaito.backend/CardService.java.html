@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>CardService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">backend</a> &gt; <a href="index.source.html" class="el_package">com.github.wekaito.backend</a> &gt; <span class="el_source">CardService.java</span></div><h1>CardService.java</h1><pre class="source lang-java linenums">package com.github.wekaito.backend;
+
+import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
+import jakarta.annotation.PostConstruct;
+import lombok.RequiredArgsConstructor;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.web.reactive.function.client.ExchangeStrategies;
+import org.springframework.web.reactive.function.client.WebClient;
+
+import java.lang.reflect.Type;
+import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+
+@Service
+@RequiredArgsConstructor
+public class CardService {
+
+    private static final String BASE_URL = &quot;https://raw.githubusercontent.com/TakaOtaku/Digimon-Card-App/main/src/&quot;;
+
+    private final CardRepo cardRepo;
+
+    private final List&lt;Card&gt; cardCollection;
+
+    private final Card fallbackCard = new Card(
+            &quot;1110101&quot;,
+            &quot;Fallback Card&quot;,
+            &quot;https://raw.githubusercontent.com/WE-Kaito/digimon-tcg-simulator/main/frontend/src/assets/tokens/tokenCard.jpg&quot;,
+            &quot;Digimon&quot;,
+            List.of(&quot;Unknown&quot;),
+            &quot;Fallback&quot;,
+            &quot;1110101&quot;,
+            List.of(new DigivolveCondition(&quot;Unknown&quot;, 0, 0)),
+            null,
+            &quot;Rookie&quot;,
+            List.of(&quot;Unknown&quot;),
+            0,
+            0,
+            1,
+            &quot;If you see this card, the actual card was not found.&quot;,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            new Restrictions(&quot;&quot;,&quot;&quot;,&quot;&quot;,&quot;&quot;),
+            null
+    );
+
+<span class="fc" id="L56">    private static final Gson gson = new Gson();</span>
+
+    public List&lt;Card&gt; getCards() {
+<span class="nc" id="L59">        return cardCollection;</span>
+    }
+
+    public Card getCardByUniqueCardNumber(String uniqueCardNumber) {
+<span class="nc" id="L63">        return cardCollection.stream().filter(card -&gt; uniqueCardNumber.equals(card.uniqueCardNumber())).findFirst().orElse(fallbackCard);</span>
+    }
+
+    private final WebClient webClient = WebClient.builder()
+            .baseUrl(BASE_URL)
+            .defaultHeader(HttpHeaders.ACCEPT, MediaType.APPLICATION_JSON_VALUE)
+            .defaultHeader(HttpHeaders.ACCEPT_CHARSET, StandardCharsets.UTF_8.toString())
+            .exchangeStrategies(ExchangeStrategies.builder()
+<span class="fc" id="L71">                    .codecs(configurer -&gt; configurer</span>
+<span class="fc" id="L72">                            .defaultCodecs()</span>
+<span class="fc" id="L73">                            .maxInMemorySize(1024 * 1024 * 10))</span>
+                    .build())
+            .build();
+
+    @PostConstruct
+    public void init() {
+<span class="fc" id="L79">        fetchCards();</span>
+<span class="fc" id="L80">    }</span>
+
+    @Scheduled(fixedRate = 10800000) // 3 hours
+    void fetchCards() {
+        
+<span class="fc" id="L85">        String responseBody = webClient.get()</span>
+<span class="fc" id="L86">                .uri(&quot;assets/cardlists/PreparedDigimonCardsENG.json&quot;)</span>
+<span class="fc" id="L87">                .accept(MediaType.APPLICATION_JSON)</span>
+<span class="fc" id="L88">                .retrieve()</span>
+<span class="fc" id="L89">                .bodyToMono(String.class)</span>
+<span class="fc" id="L90">                .block();</span>
+<span class="fc" id="L91">        Type listType = new TypeToken&lt;List&lt;FetchCard&gt;&gt;() {</span>
+<span class="fc" id="L92">        }.getType();</span>
+<span class="fc" id="L93">        List&lt;FetchCard&gt; fetchedCards = gson.fromJson(responseBody, listType);</span>
+<span class="fc" id="L94">        List&lt;Card&gt; cards = new ArrayList&lt;&gt;();</span>
+
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">        assert fetchedCards != null;</span>
+        
+<span class="fc" id="L98">        fetchedCards.forEach(card -&gt; {</span>
+<span class="fc" id="L99">        List&lt;DigivolveCondition&gt; digivolveConditions = card.digivolveCondition().stream()</span>
+<span class="fc" id="L100">                .map(condition -&gt; new DigivolveCondition(</span>
+<span class="fc" id="L101">                        condition.color(),</span>
+<span class="fc" id="L102">                        Integer.parseInt(condition.cost()),</span>
+<span class="fc bfc" id="L103" title="All 2 branches covered.">                        !condition.level().equals(&quot;Tamer&quot;) ? Integer.parseInt(condition.level()) : null</span>
+                ))
+<span class="fc" id="L105">                .toList();</span>
+
+<span class="fc" id="L107">        List&lt;String&gt; digiTypes = Arrays.stream(card.type().split(&quot;/&quot;)).toList();</span>
+<span class="fc" id="L108">        List&lt;String&gt; colors = Arrays.stream(card.color().split(&quot;/&quot;)).toList();</span>
+
+<span class="fc" id="L110">        cards.add(new Card(</span>
+<span class="fc" id="L111">                card.id(),</span>
+<span class="fc" id="L112">                card.name().english(),</span>
+<span class="fc" id="L113">                BASE_URL + card.cardImage(),</span>
+<span class="fc" id="L114">                card.cardType(),</span>
+                colors,
+<span class="fc bfc" id="L116" title="All 2 branches covered.">                (card.attribute().equals(&quot;-&quot;)) ? null : card.attribute(),</span>
+<span class="pc bpc" id="L117" title="1 of 2 branches missed.">                (card.cardNumber().equals(&quot;-&quot;)) ? null : card.cardNumber(),</span>
+                digivolveConditions,
+<span class="fc bfc" id="L119" title="All 2 branches covered.">                (card.specialDigivolve().equals(&quot;-&quot;)) ? null : card.specialDigivolve(),</span>
+<span class="fc bfc" id="L120" title="All 2 branches covered.">                (card.form().equals(&quot;-&quot;)) ? null : card.form(),</span>
+                digiTypes,
+<span class="fc bfc" id="L122" title="All 2 branches covered.">                (card.dp().equals(&quot;-&quot;)) ? null : Integer.parseInt(card.dp()),</span>
+<span class="fc bfc" id="L123" title="All 2 branches covered.">                (card.playCost().equals(&quot;-&quot;)) ? null : Integer.parseInt(card.playCost()),</span>
+<span class="fc bfc" id="L124" title="All 2 branches covered.">                (card.cardLv().equals(&quot;-&quot;)) ? null : Integer.parseInt(card.cardLv().split(&quot;\\.&quot;)[1]),</span>
+<span class="fc bfc" id="L125" title="All 2 branches covered.">                (card.effect().equals(&quot;-&quot;)) ? null : card.effect(),</span>
+<span class="fc bfc" id="L126" title="All 2 branches covered.">                (card.digivolveEffect().equals(&quot;-&quot;)) ? null : card.digivolveEffect(),</span>
+<span class="fc bfc" id="L127" title="All 2 branches covered.">                (card.aceEffect().equals(&quot;-&quot;)) ? null : card.aceEffect(),</span>
+<span class="fc bfc" id="L128" title="All 2 branches covered.">                (card.burstDigivolve().equals(&quot;-&quot;)) ? null : card.burstDigivolve(),</span>
+<span class="fc bfc" id="L129" title="All 2 branches covered.">                (card.digiXros().equals(&quot;-&quot;)) ? null : card.digiXros(),</span>
+<span class="fc bfc" id="L130" title="All 2 branches covered.">                (card.dnaDigivolve().equals(&quot;-&quot;)) ? null : card.dnaDigivolve(),</span>
+<span class="fc bfc" id="L131" title="All 2 branches covered.">                (card.securityEffect().equals(&quot;-&quot;)) ? null : card.securityEffect(),</span>
+<span class="fc" id="L132">                card.restrictions(),</span>
+<span class="fc" id="L133">                card.illustrator()));</span>
+<span class="fc" id="L134">        });</span>
+
+        // CardRepo is a fail-safe in case the API is missing cards or shuts down
+<span class="fc bfc" id="L137" title="All 2 branches covered.">        for (Card repoCard : this.cardRepo.findAll()) {</span>
+<span class="pc bpc" id="L138" title="1 of 2 branches missed.">            if (cards.stream().noneMatch(card -&gt; card.cardNumber().equals(repoCard.cardNumber()))) {</span>
+<span class="nc" id="L139">                cards.add(repoCard);</span>
+            }
+<span class="fc" id="L141">        }</span>
+
+<span class="fc" id="L143">        this.cardRepo.deleteAll();</span>
+<span class="fc" id="L144">        this.cardRepo.saveAll(cards);</span>
+
+<span class="pc bpc" id="L146" title="1 of 2 branches missed.">        if (cardCollection != cards) {</span>
+<span class="fc" id="L147">            cardCollection.clear();</span>
+<span class="fc" id="L148">            cardCollection.addAll(cards);</span>
+        }
+<span class="fc" id="L150">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

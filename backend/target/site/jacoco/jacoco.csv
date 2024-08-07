@@ -1,0 +1,33 @@
+GROUP,PACKAGE,CLASS,INSTRUCTION_MISSED,INSTRUCTION_COVERED,BRANCH_MISSED,BRANCH_COVERED,LINE_MISSED,LINE_COVERED,COMPLEXITY_MISSED,COMPLEXITY_COVERED,METHOD_MISSED,METHOD_COVERED
+backend,com.github.wekaito.backend.security,MongoUserController,2,46,0,0,2,12,1,10,1,10
+backend,com.github.wekaito.backend.security,PasswordRecovery,0,12,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend.security,SafetyQuestionChange,0,9,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend.security,SecurityConfig,0,141,0,0,0,26,0,7,0,7
+backend,com.github.wekaito.backend.security,MongoUserDetailsService,12,245,2,4,3,68,3,17,1,16
+backend,com.github.wekaito.backend.security,MongoUser,0,24,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend.security,RegistrationUser,0,15,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,Name,0,6,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,Config.new PathResourceResolver() {...},17,3,4,0,6,1,3,1,1,1
+backend,com.github.wekaito.backend,FetchDigivolveCondition,0,12,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,FetchCard,0,72,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,DeckService,252,0,20,0,69,0,19,0,9,0
+backend,com.github.wekaito.backend,DeckWithoutId,6,21,0,0,1,1,1,1,1,1
+backend,com.github.wekaito.backend,DigivolveCondition,0,12,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,Card,0,72,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,BackendApplication,5,3,0,0,2,1,1,1,1,1
+backend,com.github.wekaito.backend,CardService,30,302,4,34,3,57,7,22,3,7
+backend,com.github.wekaito.backend,IdService,0,6,0,0,0,2,0,2,0,2
+backend,com.github.wekaito.backend,DeckController,53,0,2,0,14,0,9,0,8,0
+backend,com.github.wekaito.backend,Restrictions,0,15,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,Config,0,27,0,0,0,6,0,2,0,2
+backend,com.github.wekaito.backend,CardService.new TypeToken() {...},0,3,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,UserIdService,9,0,0,0,2,0,1,0,1,0
+backend,com.github.wekaito.backend,Deck,0,27,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend,ImageUrlDTO,6,0,0,0,1,0,1,0,1,0
+backend,com.github.wekaito.backend.websocket,WebSocketConfiguration,0,37,0,0,0,5,0,1,0,1
+backend,com.github.wekaito.backend.websocket,ChatService,391,22,32,2,77,8,27,4,10,4
+backend,com.github.wekaito.backend.websocket,Player,0,12,0,0,0,1,0,1,0,1
+backend,com.github.wekaito.backend.websocket,GameCard,81,0,0,0,1,0,1,0,1,0
+backend,com.github.wekaito.backend.websocket,GameStart,27,0,0,0,1,0,1,0,1,0
+backend,com.github.wekaito.backend.websocket,GameService,760,624,85,78,176,134,88,61,18,16
+backend,com.github.wekaito.backend.websocket,Modifiers,15,0,0,0,1,0,1,0,1,0

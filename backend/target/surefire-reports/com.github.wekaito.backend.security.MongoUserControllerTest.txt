@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.github.wekaito.backend.security.MongoUserControllerTest
+-------------------------------------------------------------------------------
+Tests run: 11, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 26.874 s - in com.github.wekaito.backend.security.MongoUserControllerTest

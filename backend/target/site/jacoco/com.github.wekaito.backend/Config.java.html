@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Config.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">backend</a> &gt; <a href="index.source.html" class="el_package">com.github.wekaito.backend</a> &gt; <span class="el_source">Config.java</span></div><h1>Config.java</h1><pre class="source lang-java linenums">package com.github.wekaito.backend;
+
+import org.springframework.context.annotation.Configuration;
+import org.springframework.core.io.ClassPathResource;
+import org.springframework.core.io.Resource;
+import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
+import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
+import org.springframework.web.servlet.resource.PathResourceResolver;
+
+import java.io.IOException;
+
+@Configuration
+<span class="fc" id="L13">public class Config implements WebMvcConfigurer {</span>
+    @Override
+    public void addResourceHandlers(ResourceHandlerRegistry registry) {
+<span class="fc" id="L16">        registry.addResourceHandler(&quot;/**&quot;)</span>
+<span class="fc" id="L17">                .addResourceLocations(&quot;classpath:/static/&quot;)</span>
+<span class="fc" id="L18">                .resourceChain(true)</span>
+<span class="fc" id="L19">                .addResolver(new PathResourceResolver() {</span>
+                    @Override
+                    protected Resource getResource(
+                            String resourcePath,
+                            Resource location
+                    ) throws IOException {
+<span class="nc" id="L25">                        Resource requestedResource = location.createRelative(</span>
+                                resourcePath
+                        );
+
+<span class="nc" id="L29">                        return (</span>
+<span class="nc bnc" id="L30" title="All 2 branches missed.">                                requestedResource.exists() &amp;&amp;</span>
+<span class="nc bnc" id="L31" title="All 2 branches missed.">                                        requestedResource.isReadable()</span>
+<span class="nc" id="L32">                        ) ? requestedResource</span>
+<span class="nc" id="L33">                                : new ClassPathResource(&quot;/static/index.html&quot;);</span>
+                    }
+                });
+<span class="fc" id="L36">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

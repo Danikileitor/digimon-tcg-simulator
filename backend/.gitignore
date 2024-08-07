@@ -1,6 +1,6 @@
 HELP.md
-target/
-#!target/digimon-tcg-sim.jar
+#target/
+target/digimon-tcg-sim.jar
 !.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/

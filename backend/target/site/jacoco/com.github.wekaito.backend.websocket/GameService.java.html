@@ -1,0 +1,457 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>GameService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">backend</a> &gt; <a href="index.source.html" class="el_package">com.github.wekaito.backend.websocket</a> &gt; <span class="el_source">GameService.java</span></div><h1>GameService.java</h1><pre class="source lang-java linenums">package com.github.wekaito.backend.websocket;
+
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.github.wekaito.backend.Card;
+import com.github.wekaito.backend.IdService;
+import com.github.wekaito.backend.DeckService;
+import com.github.wekaito.backend.security.MongoUserDetailsService;
+import jakarta.validation.constraints.NotNull;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import java.io.IOException;
+import java.security.SecureRandom;
+import java.util.*;
+
+@Service
+@Getter
+@RequiredArgsConstructor
+public class GameService extends TextWebSocketHandler {
+
+    private final MongoUserDetailsService mongoUserDetailsService;
+
+    private final DeckService deckService;
+
+    private final IdService idService;
+
+    final Map&lt;String, Set&lt;WebSocketSession&gt;&gt; gameRooms = new HashMap&lt;&gt;();
+
+<span class="fc" id="L36">    private static final ObjectMapper objectMapper = new ObjectMapper();</span>
+
+<span class="fc" id="L38">    private static final SecureRandom secureRand = new SecureRandom();</span>
+
+<span class="fc" id="L40">    private static final List&lt;String&gt; setupCommands = Arrays.asList(&quot;/joinGame&quot;, &quot;/startGame&quot;, &quot;/getStartingPlayers&quot;, &quot;/distributeCards&quot;, &quot;/reconnect&quot;);</span>
+
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) {
+        // do nothing
+<span class="fc" id="L45">    }</span>
+
+    @Override
+    public void afterConnectionClosed(@NotNull WebSocketSession session, CloseStatus status) {
+<span class="nc" id="L49">        String username = Objects.requireNonNull(session.getPrincipal()).getName();</span>
+<span class="nc" id="L50">        gameRooms.values().forEach(value -&gt; value.removeIf(s -&gt; username.equals(Objects.requireNonNull(s.getPrincipal()).getName())));</span>
+<span class="nc" id="L51">        gameRooms.entrySet().removeIf(entry -&gt; entry.getValue().isEmpty());</span>
+<span class="nc" id="L52">    }</span>
+
+    @Scheduled(fixedRate = 5000)
+    private synchronized void sendHeartbeat() throws IOException {
+<span class="pc bpc" id="L56" title="1 of 2 branches missed.">        for (Set&lt;WebSocketSession&gt; gameRoom : gameRooms.values()) {</span>
+<span class="nc bnc" id="L57" title="All 2 branches missed.">            for (WebSocketSession webSocketSession : gameRoom) {</span>
+<span class="nc" id="L58">                webSocketSession.sendMessage(new TextMessage(&quot;[HEARTBEAT]&quot;));</span>
+<span class="nc" id="L59">            }</span>
+<span class="nc" id="L60">        }</span>
+<span class="fc" id="L61">    }</span>
+
+    @Override
+    protected void handleTextMessage(@NotNull WebSocketSession session, TextMessage message) throws IOException {
+<span class="fc" id="L65">        String userName = Objects.requireNonNull(session.getPrincipal()).getName();</span>
+<span class="fc" id="L66">        String payload = message.getPayload();</span>
+<span class="fc bfc" id="L67" title="All 2 branches covered.">        if (payload.equals(&quot;/heartbeat/&quot;)) return;</span>
+<span class="fc" id="L68">        String[] parts = payload.split(&quot;:&quot;, 2);</span>
+
+<span class="fc bfc" id="L70" title="All 2 branches covered.">        if (setupCommands.contains(parts[0])) {</span>
+<span class="fc" id="L71">            String gameId = parts[1];</span>
+<span class="fc" id="L72">            String username1 = gameId.split(&quot;‗&quot;)[0];</span>
+<span class="fc" id="L73">            String username2 = gameId.split(&quot;‗&quot;)[1];</span>
+
+<span class="pc bpc" id="L75" title="1 of 2 branches missed.">            if (parts[0].equals(setupCommands.get(0))) computeGameRoom(session, gameId);</span>
+<span class="pc bpc" id="L76" title="1 of 2 branches missed.">            if (parts[0].equals(setupCommands.get(1))) setUpGame(gameId, username1, username2);</span>
+<span class="pc bpc" id="L77" title="1 of 2 branches missed.">            if (parts[0].equals(setupCommands.get(2))) setStartingPlayer(gameId, username1, username2);</span>
+<span class="pc bpc" id="L78" title="1 of 2 branches missed.">            if (parts[0].equals(setupCommands.get(3))) distributeCards(gameId, username1, username2);</span>
+<span class="pc bpc" id="L79" title="1 of 2 branches missed.">            if (parts[0].equals(setupCommands.get(4))) {</span>
+<span class="nc" id="L80">                synchronized (gameRooms) {</span>
+<span class="nc" id="L81">                    Set&lt;WebSocketSession&gt; existingGameRoom = gameRooms.get(gameId);</span>
+<span class="nc bnc" id="L82" title="All 4 branches missed.">                    if (existingGameRoom != null &amp;&amp; existingGameRoom.size() == 1) { // reconnect, if room exists with 1 user</span>
+<span class="nc" id="L83">                        WebSocketSession opponentSession = existingGameRoom.iterator().next();</span>
+<span class="nc" id="L84">                        existingGameRoom.add(session);</span>
+<span class="nc" id="L85">                        opponentSession.sendMessage(new TextMessage(&quot;[OPPONENT_RECONNECTED]&quot;));</span>
+                    }
+<span class="nc" id="L87">                }</span>
+            }
+<span class="fc" id="L89">            return;</span>
+        }
+
+<span class="fc" id="L92">        String gameId = parts[0];</span>
+<span class="fc" id="L93">        String roomMessage = parts[1];</span>
+<span class="fc" id="L94">        Set&lt;WebSocketSession&gt; gameRoom = gameRooms.get(gameId);</span>
+
+<span class="pc bpc" id="L96" title="1 of 2 branches missed.">        if (roomMessage.startsWith(&quot;/restartGame:&quot;)) {</span>
+<span class="nc" id="L97">            String username1 = gameId.split(&quot;‗&quot;)[0];</span>
+<span class="nc" id="L98">            String username2 = gameId.split(&quot;‗&quot;)[1];</span>
+<span class="nc" id="L99">            String startingPlayer = roomMessage.split(&quot;:&quot;)[1];</span>
+<span class="nc" id="L100">            restartGame(session, gameId, username1, username2, startingPlayer);</span>
+<span class="nc" id="L101">            return;</span>
+        }
+
+<span class="fc bfc" id="L104" title="All 2 branches covered.">        if (gameRoom == null) return;</span>
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (roomMessage.startsWith(&quot;/updateGame:&quot;)) processGameChunk(session, roomMessage, gameRoom);</span>
+
+<span class="fc bfc" id="L108" title="All 2 branches covered.">        if (roomMessage.startsWith(&quot;/attack:&quot;)) handleAttack(gameRoom, roomMessage);</span>
+
+<span class="fc bfc" id="L110" title="All 2 branches covered.">        if (roomMessage.startsWith(&quot;/moveCard:&quot;)) handleSendMoveCard(gameRoom, roomMessage);</span>
+
+<span class="pc bpc" id="L112" title="1 of 2 branches missed.">        if(roomMessage.startsWith(&quot;/setModifiers:&quot;)) handleSendSetModifiers(gameRoom, roomMessage);</span>
+
+<span class="pc bpc" id="L114" title="1 of 2 branches missed.">        if (roomMessage.startsWith(&quot;/moveCardToStack:&quot;)) handleSendMoveToStack(gameRoom, roomMessage);</span>
+
+<span class="pc bpc" id="L116" title="1 of 2 branches missed.">        if (roomMessage.startsWith(&quot;/tiltCard:&quot;)) handleTiltCard(gameRoom, roomMessage);</span>
+
+<span class="fc bfc" id="L118" title="All 2 branches covered.">        if (roomMessage.startsWith(&quot;/updateMemory:&quot;)) handleMemoryUpdate(gameRoom, roomMessage);</span>
+
+<span class="fc bfc" id="L120" title="All 2 branches covered.">        if (roomMessage.startsWith(&quot;/chatMessage:&quot;)) sendChatMessage(gameRoom, userName, roomMessage);</span>
+
+<span class="pc bpc" id="L122" title="1 of 2 branches missed.">        if (roomMessage.startsWith(&quot;/createToken:&quot;)) handleCreateToken(gameRoom, roomMessage);</span>
+
+<span class="fc" id="L124">        String[] simpleIdCommands = {&quot;/updateAttackPhase&quot;, &quot;/activateEffect&quot;, &quot;/activateTarget&quot;};</span>
+<span class="pc bpc" id="L125" title="1 of 2 branches missed.">        if(Arrays.stream(simpleIdCommands).anyMatch(roomMessage::startsWith)) handleCommandWithId(gameRoom, roomMessage);</span>
+
+        else {
+<span class="fc" id="L128">            String[] roomMessageParts = roomMessage.split(&quot;:&quot;, 2);</span>
+<span class="fc" id="L129">            String command = roomMessageParts[0];</span>
+<span class="fc" id="L130">            String opponentName = roomMessageParts[1];</span>
+<span class="fc" id="L131">            sendMessageToOpponent(gameRoom, opponentName, convertCommand(command));</span>
+        }
+<span class="fc" id="L133">    }</span>
+
+    private void sendChatMessage(Set&lt;WebSocketSession&gt; gameRoom, String userName, String roomMessage) throws IOException {
+<span class="fc" id="L136">        String[] roomMessageParts = roomMessage.split(&quot;:&quot;, 3);</span>
+<span class="pc bpc" id="L137" title="1 of 2 branches missed.">        if (roomMessageParts.length &lt; 3) return;</span>
+<span class="fc" id="L138">        String opponentName = roomMessageParts[1];</span>
+<span class="fc" id="L139">        String chatMessage = roomMessageParts[2];</span>
+<span class="fc" id="L140">        sendMessageToOpponent(gameRoom, opponentName, &quot;[CHAT_MESSAGE]:&quot; + userName + &quot;﹕&quot; + chatMessage);</span>
+<span class="fc" id="L141">    }</span>
+
+    private String convertCommand(String command) {
+<span class="pc bpc" id="L144" title="12 of 26 branches missed.">        return switch (command) {</span>
+<span class="fc" id="L145">            case &quot;/surrender&quot; -&gt; &quot;[SURRENDER]&quot;;</span>
+<span class="fc" id="L146">            case &quot;/restartRequestAsFirst&quot; -&gt; &quot;[RESTART_AS_FIRST]&quot;;</span>
+<span class="nc" id="L147">            case &quot;/restartRequestAsSecond&quot; -&gt; &quot;[RESTART_AS_SECOND]&quot;;</span>
+<span class="fc" id="L148">            case &quot;/acceptRestart&quot; -&gt; &quot;[ACCEPT_RESTART]&quot;;</span>
+<span class="fc" id="L149">            case &quot;/openedSecurity&quot; -&gt; &quot;[SECURITY_VIEWED]&quot;;</span>
+<span class="fc" id="L150">            case &quot;/playRevealSfx&quot; -&gt; &quot;[REVEAL_SFX]&quot;;</span>
+<span class="fc" id="L151">            case &quot;/playSecurityRevealSfx&quot; -&gt; &quot;[SECURITY_REVEAL_SFX]&quot;;</span>
+<span class="fc" id="L152">            case &quot;/playPlaceCardSfx&quot; -&gt; &quot;[PLACE_CARD_SFX]&quot;;</span>
+<span class="fc" id="L153">            case &quot;/playDrawCardSfx&quot; -&gt; &quot;[DRAW_CARD_SFX]&quot;;</span>
+<span class="fc" id="L154">            case &quot;/playSuspendCardSfx&quot; -&gt; &quot;[SUSPEND_CARD_SFX]&quot;;</span>
+<span class="fc" id="L155">            case &quot;/playUnsuspendCardSfx&quot; -&gt; &quot;[UNSUSPEND_CARD_SFX]&quot;;</span>
+<span class="fc" id="L156">            case &quot;/playButtonClickSfx&quot; -&gt; &quot;[BUTTON_CLICK_SFX]&quot;;</span>
+<span class="fc" id="L157">            case &quot;/playTrashCardSfx&quot; -&gt; &quot;[TRASH_CARD_SFX]&quot;;</span>
+<span class="fc" id="L158">            case &quot;/playShuffleDeckSfx&quot; -&gt; &quot;[SHUFFLE_DECK_SFX]&quot;;</span>
+<span class="nc" id="L159">            case &quot;/playNextPhaseSfx&quot; -&gt; &quot;[NEXT_PHASE_SFX]&quot;;</span>
+<span class="nc" id="L160">            case &quot;/playPassTurnSfx&quot; -&gt; &quot;[PASS_TURN_SFX]&quot;;</span>
+<span class="nc" id="L161">            case &quot;/playerReady&quot; -&gt; &quot;[PLAYER_READY]&quot;;</span>
+<span class="nc" id="L162">            case &quot;/updatePhase&quot; -&gt; &quot;[UPDATE_PHASE]&quot;;</span>
+<span class="nc" id="L163">            case &quot;/unsuspendAll&quot; -&gt; &quot;[UNSUSPEND_ALL]&quot;;</span>
+<span class="nc" id="L164">            case &quot;/resolveCounterBlock&quot; -&gt; &quot;[RESOLVE_COUNTER_BLOCK]&quot;;</span>
+<span class="nc" id="L165">            case &quot;/loaded&quot; -&gt; &quot;[LOADED]&quot;;</span>
+<span class="nc" id="L166">            case &quot;/online&quot; -&gt; &quot;[OPPONENT_ONLINE]&quot;;</span>
+<span class="nc" id="L167">            case &quot;/activateTarget&quot; -&gt; &quot;[ACTIVATE_TARGET]&quot;;</span>
+<span class="nc" id="L168">            case &quot;/activateEffect&quot; -&gt; &quot;[ACTIVATE_EFFECT]&quot;;</span>
+<span class="nc" id="L169">            case &quot;/updateAttackPhase&quot; -&gt; &quot;[OPPONENT_ATTACK_PHASE]&quot;;</span>
+<span class="fc" id="L170">            default -&gt; &quot;&quot;;</span>
+        };
+    }
+
+    private String getPosition(String fromTo) {
+<span class="pc bpc" id="L175" title="24 of 45 branches missed.">        return switch (fromTo) {</span>
+<span class="fc" id="L176">            case &quot;myDigi1&quot; -&gt; &quot;opponentDigi1&quot;;</span>
+<span class="fc" id="L177">            case &quot;myDigi2&quot; -&gt; &quot;opponentDigi2&quot;;</span>
+<span class="fc" id="L178">            case &quot;myDigi3&quot; -&gt; &quot;opponentDigi3&quot;;</span>
+<span class="fc" id="L179">            case &quot;myDigi4&quot; -&gt; &quot;opponentDigi4&quot;;</span>
+<span class="fc" id="L180">            case &quot;myDigi5&quot; -&gt; &quot;opponentDigi5&quot;;</span>
+<span class="fc" id="L181">            case &quot;myDigi6&quot; -&gt; &quot;opponentDigi6&quot;;</span>
+<span class="fc" id="L182">            case &quot;myDigi7&quot; -&gt; &quot;opponentDigi7&quot;;</span>
+<span class="fc" id="L183">            case &quot;myDigi8&quot; -&gt; &quot;opponentDigi8&quot;;</span>
+<span class="fc" id="L184">            case &quot;myDigi9&quot; -&gt; &quot;opponentDigi9&quot;;</span>
+<span class="fc" id="L185">            case &quot;myDigi10&quot; -&gt; &quot;opponentDigi10&quot;;</span>
+<span class="nc" id="L186">            case &quot;myDigi11&quot; -&gt; &quot;opponentDigi11&quot;;</span>
+<span class="nc" id="L187">            case &quot;myDigi12&quot; -&gt; &quot;opponentDigi12&quot;;</span>
+<span class="nc" id="L188">            case &quot;myDigi13&quot; -&gt; &quot;opponentDigi13&quot;;</span>
+<span class="nc" id="L189">            case &quot;myDigi14&quot; -&gt; &quot;opponentDigi14&quot;;</span>
+<span class="nc" id="L190">            case &quot;myDigi15&quot; -&gt; &quot;opponentDigi15&quot;;</span>
+<span class="nc" id="L191">            case &quot;mySecurity&quot; -&gt; &quot;opponentSecurity&quot;;</span>
+<span class="nc" id="L192">            case &quot;myHand&quot; -&gt; &quot;opponentHand&quot;;</span>
+<span class="nc" id="L193">            case &quot;myDeckField&quot; -&gt; &quot;opponentDeckField&quot;;</span>
+<span class="nc" id="L194">            case &quot;myEggDeck&quot; -&gt; &quot;opponentEggDeck&quot;;</span>
+<span class="nc" id="L195">            case &quot;myBreedingArea&quot; -&gt; &quot;opponentBreedingArea&quot;;</span>
+<span class="nc" id="L196">            case &quot;myTrash&quot; -&gt; &quot;opponentTrash&quot;;</span>
+<span class="nc" id="L197">            case &quot;myReveal&quot; -&gt; &quot;opponentReveal&quot;;</span>
+<span class="fc" id="L198">            case &quot;opponentDigi1&quot; -&gt; &quot;myDigi1&quot;;</span>
+<span class="fc" id="L199">            case &quot;opponentDigi2&quot; -&gt; &quot;myDigi2&quot;;</span>
+<span class="fc" id="L200">            case &quot;opponentDigi3&quot; -&gt; &quot;myDigi3&quot;;</span>
+<span class="fc" id="L201">            case &quot;opponentDigi4&quot; -&gt; &quot;myDigi4&quot;;</span>
+<span class="fc" id="L202">            case &quot;opponentDigi5&quot; -&gt; &quot;myDigi5&quot;;</span>
+<span class="fc" id="L203">            case &quot;opponentDigi6&quot; -&gt; &quot;myDigi6&quot;;</span>
+<span class="fc" id="L204">            case &quot;opponentDigi7&quot; -&gt; &quot;myDigi7&quot;;</span>
+<span class="fc" id="L205">            case &quot;opponentDigi8&quot; -&gt; &quot;myDigi8&quot;;</span>
+<span class="fc" id="L206">            case &quot;opponentDigi9&quot; -&gt; &quot;myDigi9&quot;;</span>
+<span class="fc" id="L207">            case &quot;opponentDigi10&quot; -&gt; &quot;myDigi10&quot;;</span>
+<span class="nc" id="L208">            case &quot;opponentDigi11&quot; -&gt; &quot;myDigi11&quot;;</span>
+<span class="nc" id="L209">            case &quot;opponentDigi12&quot; -&gt; &quot;myDigi12&quot;;</span>
+<span class="nc" id="L210">            case &quot;opponentDigi13&quot; -&gt; &quot;myDigi13&quot;;</span>
+<span class="nc" id="L211">            case &quot;opponentDigi14&quot; -&gt; &quot;myDigi14&quot;;</span>
+<span class="nc" id="L212">            case &quot;opponentDigi15&quot; -&gt; &quot;myDigi15&quot;;</span>
+<span class="fc" id="L213">            case &quot;opponentSecurity&quot; -&gt; &quot;mySecurity&quot;;</span>
+<span class="nc" id="L214">            case &quot;opponentHand&quot; -&gt; &quot;myHand&quot;;</span>
+<span class="nc" id="L215">            case &quot;opponentDeckField&quot; -&gt; &quot;myDeckField&quot;;</span>
+<span class="nc" id="L216">            case &quot;opponentEggDeck&quot; -&gt; &quot;myEggDeck&quot;;</span>
+<span class="nc" id="L217">            case &quot;opponentBreedingArea&quot; -&gt; &quot;myBreedingArea&quot;;</span>
+<span class="nc" id="L218">            case &quot;opponentTrash&quot; -&gt; &quot;myTrash&quot;;</span>
+<span class="nc" id="L219">            case &quot;opponentReveal&quot; -&gt; &quot;myReveal&quot;;</span>
+<span class="nc" id="L220">            default -&gt; &quot;&quot;;</span>
+        };
+    }
+
+    private void sendMessageToOpponent(Set&lt;WebSocketSession&gt; gameRoom, String opponentName, String message) throws IOException {
+<span class="fc" id="L225">        WebSocketSession opponentSession = gameRoom.stream()</span>
+<span class="fc" id="L226">                .filter(s -&gt; opponentName.equals(Objects.requireNonNull(s.getPrincipal()).getName()))</span>
+<span class="fc" id="L227">                .findFirst().orElse(null);</span>
+<span class="fc" id="L228">        sendTextMessage(opponentSession, message);</span>
+<span class="fc" id="L229">    }</span>
+
+    private synchronized void sendTextMessage(WebSocketSession session, String message) throws IOException {
+<span class="pc bpc" id="L232" title="1 of 4 branches missed.">        if (session == null || !session.isOpen()) return;</span>
+<span class="fc" id="L233">        session.sendMessage(new TextMessage(message));</span>
+<span class="fc" id="L234">    }</span>
+
+    private String getPlayersJson(String username1, String username2) throws JsonProcessingException {
+<span class="fc" id="L237">        String avatar1 = mongoUserDetailsService.getAvatar(username1);</span>
+<span class="fc" id="L238">        String avatar2 = mongoUserDetailsService.getAvatar(username2);</span>
+
+<span class="fc" id="L240">        String sleeve1 = deckService.getDeckSleeveById(mongoUserDetailsService.getActiveDeck(username1));</span>
+<span class="fc" id="L241">        String sleeve2 = deckService.getDeckSleeveById(mongoUserDetailsService.getActiveDeck(username2));</span>
+
+<span class="fc" id="L243">        Player player1 = new Player(username1, avatar1, sleeve1);</span>
+<span class="fc" id="L244">        Player player2 = new Player(username2, avatar2, sleeve2);</span>
+
+<span class="fc" id="L246">        Player[] players = {player1, player2};</span>
+<span class="fc" id="L247">        return objectMapper.writeValueAsString(players);</span>
+    }
+
+    private void computeGameRoom(WebSocketSession session, String gameId) throws IOException {
+<span class="nc" id="L251">        Set&lt;WebSocketSession&gt; gameRoom = gameRooms.computeIfAbsent(gameId, key -&gt; new HashSet&lt;&gt;());</span>
+<span class="nc" id="L252">        gameRoom.add(session);</span>
+
+<span class="nc bnc" id="L254" title="All 2 branches missed.">        if (gameRoom.size() == 2) {</span>
+<span class="nc bnc" id="L255" title="All 2 branches missed.">            for (WebSocketSession s : gameRoom) {</span>
+<span class="nc" id="L256">                sendTextMessage(s, &quot;[PLAYERS_READY]&quot;);</span>
+<span class="nc" id="L257">            }</span>
+        }
+<span class="nc" id="L259">    }</span>
+
+    private void setUpGame(String gameId, String username1, String username2) throws IOException {
+<span class="fc" id="L262">        Set&lt;WebSocketSession&gt; gameRoom = gameRooms.get(gameId);</span>
+<span class="fc bfc" id="L263" title="All 2 branches covered.">        for (WebSocketSession s : gameRoom) {</span>
+<span class="fc" id="L264">            sendTextMessage(s, &quot;[START_GAME]:&quot; + getPlayersJson(username1, username2));</span>
+<span class="fc" id="L265">        }</span>
+<span class="fc" id="L266">    }</span>
+
+    private void setStartingPlayer(String gameId, String username1, String username2) throws IOException {
+<span class="nc" id="L269">        Set&lt;WebSocketSession&gt; gameRoom = gameRooms.get(gameId);</span>
+<span class="nc" id="L270">        String[] names = {username1, username2};</span>
+<span class="nc" id="L271">        int index = secureRand.nextInt(names.length);</span>
+<span class="nc bnc" id="L272" title="All 2 branches missed.">        for (WebSocketSession s : gameRoom) {</span>
+<span class="nc" id="L273">            sendTextMessage(s, &quot;[STARTING_PLAYER]:&quot; + names[index]);</span>
+<span class="nc" id="L274">        }</span>
+<span class="nc" id="L275">    }</span>
+
+    private void restartGame(WebSocketSession session, String gameId, String username1, String username2, String startingPlayer) throws IOException {
+<span class="nc" id="L278">        Set&lt;WebSocketSession&gt; gameRoom = gameRooms.get(gameId);</span>
+
+<span class="nc" id="L280">        sendTextMessage(session, &quot;[START_GAME]:&quot; + getPlayersJson(username1, username2));</span>
+
+<span class="nc bnc" id="L282" title="All 2 branches missed.">        for (WebSocketSession s : gameRoom) {</span>
+<span class="nc" id="L283">            sendTextMessage(s, &quot;[STARTING_PLAYER]:&quot; + startingPlayer);</span>
+<span class="nc" id="L284">        }</span>
+<span class="nc" id="L285">    }</span>
+
+    private static List&lt;GameCard&gt; getEggDeck(List&lt;GameCard&gt; deck) {
+<span class="nc" id="L288">        List&lt;GameCard&gt; eggDeck = deck.stream().filter(card -&gt; card.cardType().equals(&quot;Digi-Egg&quot;)).toList();</span>
+<span class="nc" id="L289">        deck.removeAll(eggDeck);</span>
+<span class="nc" id="L290">        return eggDeck;</span>
+    }
+
+    private static List&lt;GameCard&gt; drawCards(List&lt;GameCard&gt; deck) {
+<span class="nc" id="L294">        List&lt;GameCard&gt; drawnCards = deck.stream().limit(5).toList();</span>
+<span class="nc" id="L295">        deck.removeAll(drawnCards);</span>
+<span class="nc" id="L296">        return drawnCards;</span>
+    }
+
+    private void distributeCards(String gameId, String username1, String username2) throws IOException {
+<span class="nc" id="L300">        Set&lt;WebSocketSession&gt; gameRoom = gameRooms.get(gameId);</span>
+
+<span class="nc" id="L302">        List&lt;Card&gt; deck1 = deckService.getDeckCardsById(mongoUserDetailsService.getActiveDeck(username1));</span>
+<span class="nc" id="L303">        List&lt;Card&gt; deck2 = deckService.getDeckCardsById(mongoUserDetailsService.getActiveDeck(username2));</span>
+
+<span class="nc" id="L305">        List&lt;GameCard&gt; newDeck1 = createGameDeck(deck1);</span>
+<span class="nc" id="L306">        List&lt;GameCard&gt; newDeck2 = createGameDeck(deck2);</span>
+
+<span class="nc" id="L308">        List&lt;GameCard&gt; player1EggDeck = getEggDeck(newDeck1);</span>
+<span class="nc" id="L309">        List&lt;GameCard&gt; player1Security = drawCards(newDeck1);</span>
+<span class="nc" id="L310">        List&lt;GameCard&gt; player1Hand = drawCards(newDeck1);</span>
+
+<span class="nc" id="L312">        List&lt;GameCard&gt; player2EggDeck = getEggDeck(newDeck2);</span>
+<span class="nc" id="L313">        List&lt;GameCard&gt; player2Security = drawCards(newDeck2);</span>
+<span class="nc" id="L314">        List&lt;GameCard&gt; player2Hand = drawCards(newDeck2);</span>
+
+<span class="nc" id="L316">        GameStart newGame = new GameStart(player1Hand, newDeck1, player1EggDeck, player1Security, player2Hand, newDeck2, player2EggDeck, player2Security);</span>
+<span class="nc" id="L317">        String newGameJson = objectMapper.writeValueAsString(newGame);</span>
+
+<span class="nc" id="L319">        int chunkSize = 1000;</span>
+<span class="nc" id="L320">        int length = newGameJson.length();</span>
+
+<span class="nc bnc" id="L322" title="All 2 branches missed.">        for (int i = 0; i &lt; length; i += chunkSize) {</span>
+
+<span class="nc" id="L324">            int end = Math.min(length, i + chunkSize);</span>
+<span class="nc" id="L325">            String chunk = newGameJson.substring(i, end);</span>
+<span class="nc bnc" id="L326" title="All 2 branches missed.">            for (WebSocketSession s : gameRoom) {</span>
+<span class="nc" id="L327">                sendTextMessage(s, &quot;[DISTRIBUTE_CARDS]:&quot; + chunk);</span>
+<span class="nc" id="L328">            }</span>
+        }
+<span class="nc" id="L330">    }</span>
+
+    private List&lt;GameCard&gt; createGameDeck(List&lt;Card&gt; deck) {
+<span class="nc" id="L333">        List&lt;GameCard&gt; gameDeck = new ArrayList&lt;&gt;();</span>
+
+<span class="nc" id="L335">        Collections.shuffle(deck, secureRand);</span>
+
+<span class="nc bnc" id="L337" title="All 2 branches missed.">        for (Card card : deck) {</span>
+<span class="nc" id="L338">            GameCard newCard = new GameCard(</span>
+<span class="nc" id="L339">                    card.uniqueCardNumber(),</span>
+<span class="nc" id="L340">                    card.name(),</span>
+<span class="nc" id="L341">                    card.imgUrl(),</span>
+<span class="nc" id="L342">                    card.cardType(),</span>
+<span class="nc" id="L343">                    card.color(),</span>
+<span class="nc" id="L344">                    card.attribute(),</span>
+<span class="nc" id="L345">                    card.cardNumber(),</span>
+<span class="nc" id="L346">                    card.digivolveConditions(),</span>
+<span class="nc" id="L347">                    card.specialDigivolve(),</span>
+<span class="nc" id="L348">                    card.stage(),</span>
+<span class="nc" id="L349">                    card.digiType(),</span>
+<span class="nc" id="L350">                    card.dp(),</span>
+<span class="nc" id="L351">                    card.playCost(),</span>
+<span class="nc" id="L352">                    card.level(),</span>
+<span class="nc" id="L353">                    card.mainEffect(),</span>
+<span class="nc" id="L354">                    card.inheritedEffect(),</span>
+<span class="nc" id="L355">                    card.aceEffect(),</span>
+<span class="nc" id="L356">                    card.burstDigivolve(),</span>
+<span class="nc" id="L357">                    card.digiXros(),</span>
+<span class="nc" id="L358">                    card.dnaDigivolve(),</span>
+<span class="nc" id="L359">                    card.securityEffect(),</span>
+<span class="nc" id="L360">                    card.restrictions(),</span>
+<span class="nc" id="L361">                    card.illustrator(),</span>
+<span class="nc" id="L362">                    idService.createId(),</span>
+<span class="nc" id="L363">                    new Modifiers(0,0, new ArrayList&lt;&gt;(), card.color()),</span>
+<span class="nc" id="L364">                    false);</span>
+<span class="nc" id="L365">            gameDeck.add(newCard);</span>
+<span class="nc" id="L366">        }</span>
+<span class="nc" id="L367">        return gameDeck;</span>
+    }
+
+    private void processGameChunk(WebSocketSession session, String command, Set&lt;WebSocketSession&gt; gameRoom) throws IOException {
+<span class="pc bpc" id="L371" title="1 of 2 branches missed.">        if (gameRoom == null) return;</span>
+<span class="fc" id="L372">        String chunk = command.substring(&quot;/updateGame:&quot;.length());</span>
+<span class="fc bfc" id="L373" title="All 2 branches covered.">        for (WebSocketSession s : gameRoom) {</span>
+<span class="pc bpc" id="L374" title="1 of 4 branches missed.">            if (s.isOpen() &amp;&amp; !s.equals(session)) {</span>
+<span class="fc" id="L375">                sendTextMessage(s, &quot;[UPDATE_OPPONENT]:&quot; + chunk);</span>
+            }
+<span class="fc" id="L377">        }</span>
+<span class="fc" id="L378">    }</span>
+
+    private void handleAttack(Set&lt;WebSocketSession&gt; gameRoom, String roomMessage) throws IOException {
+<span class="pc bpc" id="L381" title="1 of 2 branches missed.">        if (roomMessage.split(&quot;:&quot;).length &lt; 5) return;</span>
+<span class="fc" id="L382">        String[] parts = roomMessage.split(&quot;:&quot;, 5);</span>
+<span class="fc" id="L383">        String opponentName = parts[1];</span>
+<span class="fc" id="L384">        String from = parts[2];</span>
+<span class="fc" id="L385">        String to = parts[3];</span>
+<span class="fc" id="L386">        String isEffect = parts[4];</span>
+<span class="fc" id="L387">        sendMessageToOpponent(gameRoom, opponentName, &quot;[ATTACK]:&quot; + getPosition(from) + &quot;:&quot; + getPosition(to) + &quot;:&quot; + isEffect);</span>
+<span class="fc" id="L388">    }</span>
+
+    private void handleSendMoveCard(Set&lt;WebSocketSession&gt; gameRoom, String roomMessage) throws IOException {
+<span class="pc bpc" id="L391" title="1 of 2 branches missed.">        if (roomMessage.split(&quot;:&quot;).length &lt; 5) return;</span>
+<span class="fc" id="L392">        String[] parts = roomMessage.split(&quot;:&quot;, 5);</span>
+<span class="fc" id="L393">        String opponentName = parts[1];</span>
+<span class="fc" id="L394">        String cardId = parts[2];</span>
+<span class="fc" id="L395">        String from = parts[3];</span>
+<span class="fc" id="L396">        String to = parts[4];</span>
+<span class="fc" id="L397">        sendMessageToOpponent(gameRoom, opponentName, &quot;[MOVE_CARD]:&quot; + cardId + &quot;:&quot; + getPosition(from) + &quot;:&quot; + getPosition(to));</span>
+<span class="fc" id="L398">    }</span>
+
+    private void handleSendSetModifiers(Set&lt;WebSocketSession&gt; gameRoom, String roomMessage) throws IOException {
+<span class="nc bnc" id="L401" title="All 2 branches missed.">        if (roomMessage.split(&quot;:&quot;).length &lt; 5) return;</span>
+<span class="nc" id="L402">        String[] parts = roomMessage.split(&quot;:&quot;);</span>
+<span class="nc" id="L403">        String opponentName = parts[1];</span>
+<span class="nc" id="L404">        String cardId = parts[2];</span>
+<span class="nc" id="L405">        String location = parts[3];</span>
+<span class="nc" id="L406">        String modifiers = String.join(&quot;:&quot;, Arrays.copyOfRange(parts, 4, parts.length));</span>
+<span class="nc" id="L407">        sendMessageToOpponent(gameRoom, opponentName, &quot;[SET_MODIFIERS]:&quot; + cardId + &quot;:&quot; + getPosition(location) + &quot;:&quot; + modifiers);</span>
+<span class="nc" id="L408">    }</span>
+
+    private void handleSendMoveToStack(Set&lt;WebSocketSession&gt; gameRoom, String roomMessage) throws IOException {
+<span class="nc bnc" id="L411" title="All 2 branches missed.">        if (roomMessage.split(&quot;:&quot;).length &lt; 7) return;</span>
+<span class="nc" id="L412">        String[] parts = roomMessage.split(&quot;:&quot;, 7);</span>
+<span class="nc" id="L413">        String opponentName = parts[1];</span>
+<span class="nc" id="L414">        String topOrBottom = parts[2];</span>
+<span class="nc" id="L415">        String cardId = parts[3];</span>
+<span class="nc" id="L416">        String from = parts[4];</span>
+<span class="nc" id="L417">        String to = parts[5];</span>
+<span class="nc" id="L418">        String sendFaceUp = parts[6];</span>
+<span class="nc" id="L419">        sendMessageToOpponent(gameRoom, opponentName, &quot;[MOVE_CARD_TO_STACK]:&quot; + topOrBottom + &quot;:&quot; + cardId + &quot;:&quot; + getPosition(from) + &quot;:&quot; + getPosition(to) + &quot;:&quot; + sendFaceUp);</span>
+<span class="nc" id="L420">    }</span>
+
+    private void handleTiltCard(Set&lt;WebSocketSession&gt; gameRoom, String roomMessage) throws IOException {
+<span class="nc bnc" id="L423" title="All 2 branches missed.">        if (roomMessage.split(&quot;:&quot;).length &lt; 4) return;</span>
+<span class="nc" id="L424">        String[] parts = roomMessage.split(&quot;:&quot;, 4);</span>
+<span class="nc" id="L425">        String opponentName = parts[1];</span>
+<span class="nc" id="L426">        String cardId = parts[2];</span>
+<span class="nc" id="L427">        String location = parts[3];</span>
+<span class="nc" id="L428">        sendMessageToOpponent(gameRoom, opponentName, &quot;[TILT_CARD]:&quot; + cardId + &quot;:&quot; + getPosition(location));</span>
+<span class="nc" id="L429">    }</span>
+
+    private void handleCreateToken(Set&lt;WebSocketSession&gt; gameRoom, String roomMessage) throws IOException {
+<span class="nc bnc" id="L432" title="All 2 branches missed.">        if (roomMessage.split(&quot;:&quot;).length &lt; 4) return;</span>
+<span class="nc" id="L433">        String[] parts = roomMessage.split(&quot;:&quot;, 4);</span>
+<span class="nc" id="L434">        String opponentName = parts[1];</span>
+<span class="nc" id="L435">        String cardId = parts[2];</span>
+<span class="nc" id="L436">        String name = parts[3];</span>
+<span class="nc" id="L437">        sendMessageToOpponent(gameRoom, opponentName, &quot;[CREATE_TOKEN]:&quot; + cardId + &quot;:&quot; + name);</span>
+<span class="nc" id="L438">    }</span>
+
+    private void handleMemoryUpdate(Set&lt;WebSocketSession&gt; gameRoom, String roomMessage) throws IOException {
+<span class="pc bpc" id="L441" title="1 of 2 branches missed.">        if (roomMessage.split(&quot;:&quot;).length &lt; 3) return;</span>
+<span class="fc" id="L442">        String[] parts = roomMessage.split(&quot;:&quot;, 3);</span>
+<span class="fc" id="L443">        String opponentName = parts[1];</span>
+<span class="fc" id="L444">        int memory = Integer.parseInt(parts[2]) * -1;</span>
+<span class="fc" id="L445">        sendMessageToOpponent(gameRoom, opponentName, &quot;[UPDATE_MEMORY]:&quot; + memory);</span>
+<span class="fc" id="L446">    }</span>
+
+    private void handleCommandWithId(Set&lt;WebSocketSession&gt; gameRoom, String roomMessage) throws IOException {
+<span class="nc bnc" id="L449" title="All 2 branches missed.">        if (roomMessage.split(&quot;:&quot;).length &lt; 3) return;</span>
+<span class="nc" id="L450">        String[] parts = roomMessage.split(&quot;:&quot;, 3);</span>
+<span class="nc" id="L451">        String command = parts[0];</span>
+<span class="nc" id="L452">        String opponentName = parts[1];</span>
+<span class="nc" id="L453">        String id = parts[2];</span>
+<span class="nc" id="L454">        sendMessageToOpponent(gameRoom, opponentName, convertCommand(command) + &quot;:&quot; + id);</span>
+<span class="nc" id="L455">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>

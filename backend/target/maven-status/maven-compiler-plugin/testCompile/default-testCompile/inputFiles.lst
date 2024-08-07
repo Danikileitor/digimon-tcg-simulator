@@ -1,0 +1,8 @@
+/home/daniel/GitHub/digimon-tcg-simulator/backend/src/test/java/com/github/wekaito/backend/DeckWithoutIdTest.java
+/home/daniel/GitHub/digimon-tcg-simulator/backend/src/test/java/com/github/wekaito/backend/security/MongoUserControllerTest.java
+/home/daniel/GitHub/digimon-tcg-simulator/backend/src/test/java/com/github/wekaito/backend/DeckServiceTest.java
+/home/daniel/GitHub/digimon-tcg-simulator/backend/src/test/java/com/github/wekaito/backend/security/MongoUserDetailsServiceTest.java
+/home/daniel/GitHub/digimon-tcg-simulator/backend/src/test/java/com/github/wekaito/backend/websocket/ChatServiceTest.java
+/home/daniel/GitHub/digimon-tcg-simulator/backend/src/test/java/com/github/wekaito/backend/DeckTest.java
+/home/daniel/GitHub/digimon-tcg-simulator/backend/src/test/java/com/github/wekaito/backend/websocket/GameServiceTest.java
+/home/daniel/GitHub/digimon-tcg-simulator/backend/src/test/java/com/github/wekaito/backend/DeckControllerTest.java

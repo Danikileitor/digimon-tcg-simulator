@@ -1,0 +1,175 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>ChatService.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">backend</a> &gt; <a href="index.source.html" class="el_package">com.github.wekaito.backend.websocket</a> &gt; <span class="el_source">ChatService.java</span></div><h1>ChatService.java</h1><pre class="source lang-java linenums">package com.github.wekaito.backend.websocket;
+
+import com.github.wekaito.backend.Card;
+import com.github.wekaito.backend.CardService;
+import com.github.wekaito.backend.DeckService;
+import com.github.wekaito.backend.security.MongoUserDetailsService;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.scheduling.annotation.Scheduled;
+import org.springframework.stereotype.Service;
+import org.springframework.web.socket.CloseStatus;
+import org.springframework.web.socket.TextMessage;
+import org.springframework.web.socket.WebSocketSession;
+import org.springframework.web.socket.handler.TextWebSocketHandler;
+
+import java.io.IOException;
+import java.util.*;
+
+@Getter
+@Service
+@RequiredArgsConstructor
+public class ChatService extends TextWebSocketHandler {
+
+    private final MongoUserDetailsService mongoUserDetailsService;
+    private final DeckService deckService;
+    private final CardService cardService;
+
+    private final Set&lt;WebSocketSession&gt; activeSessions = new HashSet&lt;&gt;();
+    private final Set&lt;String&gt; connectedUsernames = new HashSet&lt;&gt;();
+
+    private int totalSessionCount = 0;
+
+    @Autowired
+    private GameService gameService;
+
+    @Override
+    public void afterConnectionEstablished(WebSocketSession session) throws IOException {
+<span class="nc" id="L39">        String username = Objects.requireNonNull(session.getPrincipal()).getName();</span>
+<span class="nc" id="L40">        String activeDeck = mongoUserDetailsService.getActiveDeck(username);</span>
+<span class="nc bnc" id="L41" title="All 4 branches missed.">        if (activeDeck.equals(&quot;&quot;) || deckService.getDeckById(activeDeck) == null) {</span>
+<span class="nc" id="L42">            session.sendMessage(new TextMessage(&quot;[NO_ACTIVE_DECK]&quot;));</span>
+<span class="nc" id="L43">            return;</span>
+        }
+
+<span class="nc" id="L46">        List&lt;Card&gt; deckCards = deckService.getDeckCardsById(activeDeck);</span>
+<span class="nc bnc" id="L47" title="All 2 branches missed.">        if (deckCards.stream().anyMatch(c -&gt; &quot;1110101&quot;.equals(c.cardNumber()))) {</span>
+<span class="nc" id="L48">            session.sendMessage(new TextMessage(&quot;[BROKEN_DECK]&quot;));</span>
+<span class="nc" id="L49">            return;</span>
+        }
+
+<span class="nc bnc" id="L52" title="All 2 branches missed.">        if (activeSessions.stream().anyMatch(s -&gt; Objects.equals(Objects.requireNonNull(s.getPrincipal()).getName(), username))) {</span>
+<span class="nc" id="L53">            session.sendMessage(new TextMessage(&quot;[CHAT_MESSAGE]:【SERVER】: You are already connected!&quot;));</span>
+<span class="nc" id="L54">            return;</span>
+        }
+<span class="nc" id="L56">        activeSessions.add(session);</span>
+<span class="nc" id="L57">        connectedUsernames.add(username);</span>
+<span class="nc" id="L58">        broadcastConnectedUsernames();</span>
+<span class="nc" id="L59">        session.sendMessage(new TextMessage(&quot;[CHAT_MESSAGE]:【SERVER】: Join our Discord!&quot;));</span>
+<span class="nc" id="L60">        session.sendMessage(new TextMessage(&quot;[USER_COUNT]:&quot; + getTotalSessionCount()));</span>
+<span class="nc" id="L61">    }</span>
+
+    @Override
+    public void afterConnectionClosed(WebSocketSession session, CloseStatus status) throws IOException {
+<span class="nc" id="L65">        String username = Objects.requireNonNull(session.getPrincipal()).getName();</span>
+<span class="nc" id="L66">        activeSessions.remove(session);</span>
+<span class="nc" id="L67">        connectedUsernames.remove(username);</span>
+<span class="nc" id="L68">        broadcastConnectedUsernames();</span>
+<span class="nc" id="L69">    }</span>
+
+    @Scheduled(fixedRate = 10000)
+    private synchronized void sendHeartbeat() throws IOException {
+<span class="fc" id="L73">        broadcastUserCount();</span>
+<span class="fc" id="L74">    }</span>
+
+    @Scheduled(fixedRate = 2000)
+    private synchronized void sendReconnectInfo() throws IOException {
+<span class="fc" id="L78">        checkForRejoinableRoom();</span>
+<span class="fc" id="L79">    }</span>
+
+    private void broadcastConnectedUsernames() throws IOException {
+<span class="nc" id="L82">        String userListMessage = String.join(&quot;, &quot;, connectedUsernames);</span>
+<span class="nc bnc" id="L83" title="All 2 branches missed.">        for (WebSocketSession session : activeSessions) {</span>
+<span class="nc" id="L84">            session.sendMessage(new TextMessage(userListMessage));</span>
+<span class="nc" id="L85">        }</span>
+<span class="nc" id="L86">    }</span>
+
+    private void broadcastUserCount() throws IOException {
+<span class="pc bpc" id="L89" title="1 of 2 branches missed.">        for (WebSocketSession session : activeSessions) {</span>
+<span class="nc" id="L90">            session.sendMessage(new TextMessage(&quot;[USER_COUNT]:&quot; + (getTotalSessionCount())));</span>
+<span class="nc" id="L91">        }</span>
+<span class="fc" id="L92">    }</span>
+
+    private void checkForRejoinableRoom() throws IOException {
+<span class="pc bpc" id="L95" title="1 of 2 branches missed.">        for (WebSocketSession session : activeSessions) {</span>
+<span class="nc" id="L96">            String matchingRoomId = gameService.gameRooms.keySet().stream()</span>
+<span class="nc" id="L97">                    .filter(roomId -&gt; roomId.contains(Objects.requireNonNull(session.getPrincipal()).getName()))</span>
+<span class="nc" id="L98">                    .findFirst().orElse(null);</span>
+<span class="nc bnc" id="L99" title="All 2 branches missed.">            if (matchingRoomId != null) session.sendMessage(new TextMessage(&quot;[RECONNECT_ENABLED]:&quot; + matchingRoomId));</span>
+<span class="nc" id="L100">            else session.sendMessage(new TextMessage(&quot;[RECONNECT_DISABLED]&quot;));</span>
+<span class="nc" id="L101">        }</span>
+<span class="fc" id="L102">    }</span>
+
+    private WebSocketSession getSessionByUsername(String username) {
+<span class="nc" id="L105">        return activeSessions.stream()</span>
+<span class="nc" id="L106">                .filter(s -&gt; username.equals(Objects.requireNonNull(s.getPrincipal()).getName()))</span>
+<span class="nc" id="L107">                .findFirst().orElse(null);</span>
+    }
+
+    private int getTotalSessionCount() {
+<span class="nc" id="L111">        totalSessionCount = activeSessions.size() + gameService.gameRooms.values().stream().mapToInt(Set::size).sum();</span>
+<span class="nc" id="L112">        return totalSessionCount;</span>
+    }
+
+    @Override
+    protected void handleTextMessage(WebSocketSession session, TextMessage message) throws IOException {
+<span class="nc" id="L117">        String username = Objects.requireNonNull(session.getPrincipal()).getName();</span>
+<span class="nc" id="L118">        String payload = message.getPayload();</span>
+
+<span class="nc bnc" id="L120" title="All 2 branches missed.">        if (payload.equals(&quot;/heartbeat/&quot;)) return;</span>
+
+<span class="nc bnc" id="L122" title="All 2 branches missed.">        if (payload.startsWith(&quot;/invite:&quot;)) {</span>
+
+<span class="nc" id="L124">            String invitedUsername = payload.substring(payload.indexOf(&quot;:&quot;) + 1).trim();</span>
+
+<span class="nc bnc" id="L126" title="All 2 branches missed.">            if (connectedUsernames.contains(invitedUsername)) {</span>
+<span class="nc" id="L127">                WebSocketSession invitedSession = getSessionByUsername(invitedUsername);</span>
+<span class="nc bnc" id="L128" title="All 2 branches missed.">                if (invitedSession != null) {</span>
+<span class="nc" id="L129">                    invitedSession.sendMessage(new TextMessage(&quot;[INVITATION]:&quot; + username));</span>
+                }
+
+<span class="nc" id="L132">                connectedUsernames.remove(username);</span>
+<span class="nc" id="L133">                connectedUsernames.remove(invitedUsername);</span>
+<span class="nc" id="L134">                broadcastConnectedUsernames();</span>
+            }
+<span class="nc" id="L136">            return;</span>
+        }
+
+<span class="nc bnc" id="L139" title="All 2 branches missed.">        if (payload.startsWith(&quot;/abortInvite:&quot;)) {</span>
+
+<span class="nc" id="L141">            String invitedUsername = payload.substring(payload.indexOf(&quot;:&quot;) + 1).trim();</span>
+<span class="nc" id="L142">            WebSocketSession invitedSession = getSessionByUsername(invitedUsername);</span>
+
+<span class="nc bnc" id="L144" title="All 2 branches missed.">            if (invitedSession != null) {</span>
+<span class="nc" id="L145">                invitedSession.sendMessage(new TextMessage(&quot;[INVITATION_ABORTED]&quot;));</span>
+            }
+
+<span class="nc" id="L148">            connectedUsernames.add(username);</span>
+<span class="nc" id="L149">            connectedUsernames.add(invitedUsername);</span>
+<span class="nc" id="L150">            broadcastConnectedUsernames();</span>
+<span class="nc" id="L151">            return;</span>
+        }
+
+<span class="nc bnc" id="L154" title="All 2 branches missed.">        if (payload.startsWith(&quot;/acceptInvite:&quot;)) {</span>
+<span class="nc" id="L155">            String invitingUsername = payload.substring(payload.indexOf(&quot;:&quot;) + 1).trim();</span>
+<span class="nc" id="L156">            WebSocketSession invitingSession = getSessionByUsername(invitingUsername);</span>
+
+<span class="nc bnc" id="L158" title="All 2 branches missed.">            if (invitingSession != null) {</span>
+<span class="nc" id="L159">                invitingSession.sendMessage(new TextMessage(&quot;[INVITATION_ACCEPTED]:&quot; + username));</span>
+            }
+
+<span class="nc" id="L162">            connectedUsernames.add(username);</span>
+<span class="nc" id="L163">            connectedUsernames.add(invitingUsername);</span>
+<span class="nc" id="L164">            broadcastConnectedUsernames();</span>
+<span class="nc" id="L165">            return;</span>
+        }
+
+<span class="nc" id="L168">        TextMessage textMessage = new TextMessage(&quot;[CHAT_MESSAGE]:&quot; + username + &quot;: &quot; + payload);</span>
+
+<span class="nc bnc" id="L170" title="All 2 branches missed.">        for (WebSocketSession webSocketSession : activeSessions) {</span>
+<span class="nc" id="L171">            webSocketSession.sendMessage(textMessage);</span>
+<span class="nc" id="L172">        }</span>
+<span class="nc" id="L173">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.10.202304240956</span></div></body></html>
