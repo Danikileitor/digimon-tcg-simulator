@@ -15,7 +15,7 @@ backend/src/main/resources/static/
 .Python
 build/
 develop-eggs/
-dist/
+#dist/
 downloads/
 eggs/
 .eggs/
